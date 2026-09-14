@@ -1,0 +1,21 @@
+[project]
+name = "pantry-pulse-backend"
+version = "0.1.0"
+description = "Autonomous Food Rescue & Volunteer Dispatch Agent using Strands Agents SDK"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "strands-agents>=1.0.0",
+    "strands-agents-tools>=0.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "python-multipart>=0.0.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
