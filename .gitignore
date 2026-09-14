@@ -1,0 +1,27 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Python & Backend
+backend/.venv/
+backend/__pycache__/
+backend/*/__pycache__/
+backend/*/*/__pycache__/
+backend/*/*/*/__pycache__/
+backend/.pytest_cache/
+backend/*.egg-info/
+backend/dist/
+backend/build/
+*.py[cod]
+*$py.class
+*.log
+.env
+.env.*
+!.env.example
+
+# Node & Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.eslintcache
+frontend/*.tsbuildinfo

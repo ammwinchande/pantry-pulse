@@ -1,0 +1,11 @@
+services:
+  pantry-pulse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - STATIC_DIR=/app/frontend/dist
+    restart: unless-stopped
