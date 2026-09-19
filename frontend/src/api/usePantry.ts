@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from './client';
+import { useAuth } from './useAuth';
 import type {
   SystemStats,
   DonationAlert,
@@ -9,6 +10,12 @@ import type {
   AgentTraceLog,
   NotificationMessage,
 } from '../types';
+
+/** Resolve the acting coordinator's display name from the auth session. */
+function useApproverName(): string {
+  const { user } = useAuth();
+  return user?.name ?? 'Coordinator';
+}
 
 export function useStats() {
   return useQuery<SystemStats>({
@@ -82,11 +89,12 @@ export function useSimulateAlert() {
 
 export function useApproveDecision() {
   const queryClient = useQueryClient();
+  const approver = useApproverName();
   return useMutation({
     mutationFn: (proposalId: string) =>
       fetchApi<Dispatch>(`/decisions/${proposalId}/approve`, {
         method: 'POST',
-        body: JSON.stringify({ approved_by: 'Coordinator Sarah L.' }),
+        body: JSON.stringify({ approved_by: approver }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pendingDecisions'] });
@@ -101,11 +109,12 @@ export function useApproveDecision() {
 
 export function useOverrideAlternative() {
   const queryClient = useQueryClient();
+  const approver = useApproverName();
   return useMutation({
     mutationFn: (proposalId: string) =>
       fetchApi<Dispatch>(`/decisions/${proposalId}/override-alternative`, {
         method: 'POST',
-        body: JSON.stringify({ approved_by: 'Coordinator Sarah L.' }),
+        body: JSON.stringify({ approved_by: approver }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pendingDecisions'] });

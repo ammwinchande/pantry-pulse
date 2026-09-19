@@ -9,8 +9,9 @@ import {
   PlusCircle,
   Radio,
   UserCheck,
+  LogOut,
 } from 'lucide-react';
-import type { SystemStats, UserRole } from '../types';
+import type { SystemStats, UserRole, AuthUser } from '../types';
 
 interface HeaderProps {
   stats?: SystemStats;
@@ -18,6 +19,8 @@ interface HeaderProps {
   onRoleChange: (role: UserRole) => void;
   onSimulate: () => void;
   isSimulating: boolean;
+  user?: AuthUser | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +29,8 @@ export const Header: React.FC<HeaderProps> = ({
   onRoleChange,
   onSimulate,
   isSimulating,
+  user,
+  onLogout,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
@@ -108,8 +113,30 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Action Trigger */}
+          {/* Action Trigger + Account */}
           <div className="flex items-center gap-2">
+            {user && (
+              <div className="hidden sm:flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-lg pl-2.5 pr-1.5 py-1.5">
+                <div className="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white text-[11px] font-bold">
+                  {user.name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="text-left leading-tight">
+                  <div className="text-xs font-semibold text-white max-w-[140px] truncate">
+                    {user.name}
+                  </div>
+                  <div className="text-[10px] text-slate-400 max-w-[140px] truncate">
+                    {user.role}
+                  </div>
+                </div>
+                <button
+                  onClick={onLogout}
+                  title="Sign out"
+                  className="ml-1 p-1.5 rounded-md text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 transition cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <button
               onClick={onSimulate}
               disabled={isSimulating}
@@ -127,8 +154,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onRoleChange('COORDINATOR')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${currentRole === 'COORDINATOR'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -143,8 +170,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onRoleChange('VOLUNTEER')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${currentRole === 'VOLUNTEER'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <Truck className="w-3.5 h-3.5" />
@@ -154,8 +181,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onRoleChange('INTAKE_WORKER')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${currentRole === 'INTAKE_WORKER'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
@@ -165,8 +192,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onRoleChange('DONOR')}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${currentRole === 'DONOR'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
                 }`}
             >
               <HeartHandshake className="w-3.5 h-3.5" />

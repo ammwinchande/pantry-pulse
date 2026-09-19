@@ -15,9 +15,11 @@ import {
   useConfirmDelivery,
   useToggleAvailability,
 } from './api/usePantry';
+import { AuthProvider, useAuth } from './api/useAuth';
 import { fetchApi } from './api/client';
 import type { UserRole, DonationAlert } from './types';
 import { Header } from './components/Header';
+import { AuthView } from './components/AuthView';
 import { DecisionGate } from './components/DecisionGate';
 import { LiveSurplusFeed } from './components/LiveSurplusFeed';
 import { VolunteerFleetView } from './components/VolunteerFleetView';
@@ -37,6 +39,7 @@ const queryClient = new QueryClient({
 
 const DashboardContent: React.FC = () => {
   const [role, setRole] = useState<UserRole>('COORDINATOR');
+  const { user, logout } = useAuth();
 
   // TanStack Queries
   const { data: stats } = useStats();
@@ -78,6 +81,8 @@ const DashboardContent: React.FC = () => {
         onRoleChange={setRole}
         onSimulate={() => simulateMutation.mutate()}
         isSimulating={simulateMutation.isPending}
+        user={user}
+        onLogout={logout}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -152,10 +157,30 @@ const DashboardContent: React.FC = () => {
   );
 };
 
+const AuthGate: React.FC = () => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <div className="text-sm text-slate-400">Loading PantryPulse…</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthView />;
+  }
+
+  return <DashboardContent />;
+};
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <DashboardContent />
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

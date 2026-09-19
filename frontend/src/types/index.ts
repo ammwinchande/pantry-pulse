@@ -139,3 +139,45 @@ export interface NotificationMessage {
   content: string;
   status: string;
 }
+
+// --- Auth types ---
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  organization: string;
+  is_active: boolean;
+  email_verified_at?: string | null;
+  created_at: string;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface RegisterResponse {
+  user: AuthUser;
+  message: string;
+  activation_url?: string | null;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: AuthUser;
+}
+
+export interface MessageResponse {
+  message: string;
+  reset_url?: string | null;
+}
