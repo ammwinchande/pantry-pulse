@@ -116,7 +116,7 @@ class Dispatch(BaseModel):
     donor_name: str
     donor_address: str
     pantry_address: str = "Community Food Pantry, 1420 Hope St, Seattle, WA"
-    pickup_verification_code: str = "5821"
+    pickup_verification_code: str
     status: DispatchStatus = DispatchStatus.APPROVED
     approved_by: str = "Coordinator Sarah L."
     approved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -126,11 +126,24 @@ class Dispatch(BaseModel):
     notes: Optional[str] = None
 
 class User(BaseModel):
+    """Application user (coordinator, intake worker, volunteer, donor)."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     email: str
     role: UserRole
     organization: str = "Downtown Community Pantry"
+    is_active: bool = False
+    email_verified_at: Optional[datetime] = None
+    password_hash: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class AuthToken(BaseModel):
+    """JWT access token issued after login / registration activation."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+    user: User
 
 class SystemStats(BaseModel):
     total_rescued_lbs: int

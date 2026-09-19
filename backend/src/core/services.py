@@ -1,4 +1,5 @@
 import random
+import secrets
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 
@@ -9,7 +10,7 @@ from src.domain.models import (
 )
 from src.domain.exceptions import (
     DonationNotFoundError, VolunteerNotFoundError, ProposalNotFoundError,
-    IncompatibleVolunteerError
+    DispatchNotFoundError, IncompatibleVolunteerError, InvalidStateTransitionError
 )
 from src.ports.driving.donation_use_case import DonationUseCase
 from src.ports.driving.dispatch_use_case import DispatchUseCase
@@ -171,6 +172,7 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         proposal = self._dispatches.get_proposal_by_id(proposal_id)
         if not proposal:
             raise ProposalNotFoundError(proposal_id)
+        self._ensure_proposal_pending(proposal)
 
         donation = self._donations.get_by_id(proposal.donation_id)
         if not donation:
@@ -193,6 +195,7 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         proposal = self._dispatches.get_proposal_by_id(proposal_id)
         if not proposal:
             raise ProposalNotFoundError(proposal_id)
+        self._ensure_proposal_pending(proposal)
 
         if not proposal.alternative_candidate:
             raise IncompatibleVolunteerError("No alternative candidate specified in proposal.")
@@ -220,6 +223,7 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         proposal = self._dispatches.get_proposal_by_id(proposal_id)
         if not proposal:
             raise ProposalNotFoundError(proposal_id)
+        self._ensure_proposal_pending(proposal)
 
         donation = self._donations.get_by_id(proposal.donation_id)
         if not donation:
@@ -253,8 +257,12 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
     def confirm_pickup(self, dispatch_id: str, verification_code: str) -> Dispatch:
         dispatch = self._dispatches.get_dispatch_by_id(dispatch_id)
         if not dispatch:
-            raise ProposalNotFoundError(dispatch_id)
-        if verification_code != dispatch.pickup_verification_code:
+            raise DispatchNotFoundError(dispatch_id)
+        if dispatch.status != DispatchStatus.APPROVED:
+            raise InvalidStateTransitionError(
+                "dispatch", dispatch.status.value, DispatchStatus.PICKED_UP.value
+            )
+        if not secrets.compare_digest(verification_code, dispatch.pickup_verification_code):
             raise IncompatibleVolunteerError("Invalid pickup verification code.")
 
         now = datetime.now(timezone.utc)
@@ -271,7 +279,11 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
     def confirm_delivery(self, dispatch_id: str, final_weight_lbs: Optional[int] = None) -> Dispatch:
         dispatch = self._dispatches.get_dispatch_by_id(dispatch_id)
         if not dispatch:
-            raise ProposalNotFoundError(dispatch_id)
+            raise DispatchNotFoundError(dispatch_id)
+        if dispatch.status != DispatchStatus.PICKED_UP:
+            raise InvalidStateTransitionError(
+                "dispatch", dispatch.status.value, DispatchStatus.DELIVERED.value
+            )
 
         now = datetime.now(timezone.utc)
         dispatch.status = DispatchStatus.DELIVERED
@@ -338,6 +350,15 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
             carbon_offset_kg=carbon
         )
 
+    # --- Internal State-Machine Helper ---
+    @staticmethod
+    def _ensure_proposal_pending(proposal: DispatchProposal) -> None:
+        """A proposal may only be decided while it is still PROPOSED."""
+        if proposal.status != DispatchStatus.PROPOSED:
+            raise InvalidStateTransitionError(
+                "proposal", proposal.status.value, "decision"
+            )
+
     # --- Internal Dispatch Execution Helper ---
     def _execute_dispatch(
         self,
@@ -351,8 +372,8 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         proposal.status = DispatchStatus.APPROVED
         self._dispatches.save_proposal(proposal)
 
-        # Generate 4-digit verification code
-        code = str(random.randint(1000, 9999))
+        # Generate a cryptographically secure 4-digit verification code
+        code = f"{secrets.randbelow(10000):04d}"
 
         # Create Dispatch record
         dispatch = Dispatch(
