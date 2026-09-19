@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     static_dir: str = ""
 
+    # --- Logging ---
+    # Console/file verbosity: DEBUG | INFO | WARNING | ERROR (default INFO).
+    log_level: str = "INFO"
+    # Optional path to a rotating log file. Empty = console only.
+    # Set in production (e.g. /app/logs/pantrypulse.log) for retention.
+    log_file: str = ""
+
     # --- Persistence (datastore) ---
     # SQLAlchemy URL. SQLite by default (zero-config); switch to Postgres/MySQL
     # in production by setting this, e.g.:

@@ -18,6 +18,8 @@ backend/build/
 .env
 .env.*
 !.env.example
+pantrypulse.db
+*.db
 
 # Node & Frontend
 frontend/node_modules/

@@ -1,4 +1,7 @@
+import logging
 import os
+import time
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -24,6 +27,39 @@ from src.domain.exceptions import (
     InvalidStateTransitionError,
     IncompatibleVolunteerError,
 )
+
+logger = logging.getLogger("PantryPulseHTTP")
+
+
+def _register_request_logging(app: FastAPI) -> None:
+    """Log one line per HTTP request with method, path, status, and duration.
+
+    This replaces uvicorn's default access log (silenced in ``logging_config``)
+    so each request is logged exactly once, with a richer, uniform format.
+    Health-check polling is logged at DEBUG to avoid console noise.
+    """
+
+    @app.middleware("http")
+    async def _log_requests(request: Request, call_next):
+        start = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            # Let FastAPI's exception handlers turn this into a response;
+            # we still want a log line for the failure.
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.warning(
+                "%s %s -> 500 (%.1f ms) [unhandled exception]",
+                request.method, request.url.path, duration_ms,
+            )
+            raise
+        duration_ms = (time.perf_counter() - start) * 1000
+        log_fn = logger.debug if request.url.path == "/api/health" else logger.info
+        log_fn(
+            "%s %s -> %s (%.1f ms)",
+            request.method, request.url.path, response.status_code, duration_ms,
+        )
+        return response
 
 
 def _register_domain_exception_handlers(app: FastAPI) -> None:
@@ -92,6 +128,9 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # One uniform log line per request (method, path, status, duration).
+    _register_request_logging(app)
 
     router = create_router(service, agent_adapter, notifier_adapter)
     app.include_router(router)

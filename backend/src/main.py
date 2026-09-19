@@ -1,6 +1,8 @@
+import logging
 import os
 import uvicorn
 from src.config import settings
+from src.logging_config import setup_logging
 from src.adapters.outbound.persistence.db import init_db, get_session
 from src.adapters.outbound.persistence import seeder
 from src.adapters.outbound.persistence.sqlalchemy_repos import (
@@ -16,6 +18,11 @@ from src.adapters.outbound.notification.mock_notifier import MockNotificationAda
 from src.core.services import PantryPulseService
 from src.core.auth_service import AuthService
 from src.adapters.inbound.rest.app import create_app
+
+# Configure process-wide logging first so every adapter/service below emits
+# uniform, timestamped lines (and so uvicorn's own loggers are re-styled).
+setup_logging()
+logger = logging.getLogger("PantryPulse")
 
 # --- Hexagonal Composition Root ---
 # Datastore: SQLite by default; set DATABASE_URL to switch to Postgres/MySQL.
@@ -61,7 +68,21 @@ app = create_app(
     user_repo=user_repo,
 )
 
+logger.info(
+    "PantryPulse composition complete — app ready "
+    "(seed_on_startup=%s, database=%s)",
+    settings.seed_on_startup,
+    settings.database_url.split("://")[0],
+)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    print(f"Starting PantryPulse Backend on port {port}...")
-    uvicorn.run("src.main:app", host="0.0.0.0", port=port, reload=True)
+    logger.info("Starting PantryPulse Backend on port %s (env=%s, log_level=%s)",
+                port, settings.environment, settings.log_level)
+    uvicorn.run(
+        "src.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=True,
+        log_level=settings.log_level.lower(),
+    )

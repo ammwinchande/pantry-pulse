@@ -1,3 +1,4 @@
+import logging
 import random
 import secrets
 from typing import List, Optional
@@ -21,6 +22,9 @@ from src.ports.driven.dispatch_repo_port import DispatchRepositoryPort
 from src.ports.driven.agent_port import AgentPort
 from src.ports.driven.notification_port import NotificationPort
 
+logger = logging.getLogger("PantryPulseService")
+
+
 class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
     def __init__(
         self,
@@ -38,6 +42,12 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
 
     # --- Donation Use Case Implementation ---
     def ingest_donation_alert(self, donation: DonationAlert) -> DispatchProposal:
+        logger.info(
+            "Donation alert received: %s (%s, %s lbs, cold_chain=%s, fragile=%s)",
+            donation.id, donation.donor_name, donation.estimated_weight_lbs,
+            donation.requires_cold_chain, donation.is_fragile,
+        )
+
         # Save donation alert
         saved_donation = self._donations.save(donation)
         self._donations.update_status(saved_donation.id, DonationStatus.ANALYZING)
@@ -50,6 +60,10 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         if not available_volunteers:
             # If all are off-duty/dispatched, include all registered for emergency triage
             available_volunteers = self._volunteers.list_all()
+            logger.warning(
+                "No available volunteers for %s — falling back to full fleet (%d) for emergency triage.",
+                saved_donation.id, len(available_volunteers),
+            )
 
         # Run Strands Agent evaluation
         proposal = self._agent.evaluate_and_propose(saved_donation, available_volunteers)
@@ -57,6 +71,17 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         # Save proposal and update donation state
         saved_proposal = self._dispatches.save_proposal(proposal)
         self._donations.update_status(saved_donation.id, DonationStatus.PENDING_DECISION)
+
+        primary = saved_proposal.primary_candidate
+        alt = saved_proposal.alternative_candidate
+        logger.info(
+            "Dispatch proposal generated for %s: primary=%s (match=%.2f)%s, urgency=%s.",
+            saved_donation.id,
+            primary.name,
+            primary.match_score,
+            f", alternative={alt.name}" if alt else "",
+            saved_proposal.urgency_level,
+        )
 
         return saved_proposal
 
@@ -254,6 +279,9 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
             donation.status = DonationStatus.CANCELLED
             self._donations.save(donation)
 
+        logger.info("Proposal %s rejected (donation %s cancelled): %s",
+                    proposal_id, proposal.donation_id, reason)
+
     def confirm_pickup(self, dispatch_id: str, verification_code: str) -> Dispatch:
         dispatch = self._dispatches.get_dispatch_by_id(dispatch_id)
         if not dispatch:
@@ -273,6 +301,9 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         # Update donation and volunteer states
         self._donations.update_status(dispatch.donation_id, DonationStatus.IN_TRANSIT)
         self._volunteers.update_status(dispatch.volunteer_id, VolunteerStatus.EN_ROUTE)
+
+        logger.info("Pickup confirmed for dispatch %s (%s) — food in transit.",
+                    dispatch_id, dispatch.volunteer_name)
 
         return dispatch
 
@@ -303,6 +334,13 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
             vol.weekly_shifts_completed += 1
             self._volunteers.save(vol)
 
+        shifts = vol.weekly_shifts_completed if vol else 0
+        logger.info(
+            "Delivery confirmed for dispatch %s: %s lbs rescued, %s completed shift (%d this week).",
+            dispatch_id, dispatch.weight_rescued_lbs,
+            dispatch.volunteer_name, shifts,
+        )
+
         return dispatch
 
     def list_dispatches(self) -> List[Dispatch]:
@@ -320,10 +358,15 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         updated = self._volunteers.update_status(volunteer_id, status)
         if not updated:
             raise VolunteerNotFoundError(volunteer_id)
+        logger.info("Volunteer %s (%s) set to %s.",
+                    updated.name, volunteer_id, status.value)
         return updated
 
     def register_volunteer(self, volunteer: Volunteer) -> Volunteer:
-        return self._volunteers.save(volunteer)
+        saved = self._volunteers.save(volunteer)
+        logger.info("Volunteer registered: %s (%s, %s).",
+                    saved.name, saved.id, saved.vehicle_type.value)
+        return saved
 
     # --- System Metrics & Observability ---
     def get_system_stats(self) -> SystemStats:
@@ -372,6 +415,11 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         proposal.status = DispatchStatus.APPROVED
         self._dispatches.save_proposal(proposal)
 
+        logger.info(
+            "Dispatch approved for %s by %s: volunteer=%s, %s",
+            proposal.id, approved_by, volunteer.name, notes,
+        )
+
         # Generate a cryptographically secure 4-digit verification code
         code = f"{secrets.randbelow(10000):04d}"
 
@@ -400,5 +448,12 @@ class PantryPulseService(DonationUseCase, DispatchUseCase, VolunteerUseCase):
         # Send multi-channel notifications
         self._notifier.notify_volunteer_dispatch(volunteer, saved_dispatch, donation)
         self._notifier.notify_donor_eta(donation, saved_dispatch, volunteer, eta_minutes=12)
+
+        logger.info(
+            "Dispatch %s created: %s -> %s (%s), %d lbs, pickup code issued.",
+            saved_dispatch.id, volunteer.name, donation.donor_name,
+            donation.donor_address.neighborhood, donation.estimated_weight_lbs,
+        )
+        logger.debug("Dispatch %s pickup verification code: %s", saved_dispatch.id, code)
 
         return saved_dispatch
