@@ -12,12 +12,13 @@ from src.adapters.outbound.persistence.in_memory_repo import (
 from src.adapters.outbound.agent.strands_agent_adapter import StrandsAgentAdapter
 from src.adapters.outbound.notification.mock_notifier import MockNotificationAdapter
 from src.core.services import PantryPulseService
-from src.domain.exceptions import IncompatibleVolunteerError
+from src.domain.exceptions import IncompatibleVolunteerError, InvalidStateTransitionError
 
 @pytest.fixture
 def test_service():
-    # Fresh store for testing
+    # Fresh store for testing (reset the singleton for isolation)
     store = SharedInMemoryStore()
+    store.reset()
     v_repo = InMemoryVolunteerRepository(store)
     d_repo = InMemoryDonationRepository(store)
     disp_repo = InMemoryDispatchRepository(store)
@@ -86,3 +87,21 @@ def test_pickup_rejects_invalid_verification_code(test_service):
 
     with pytest.raises(IncompatibleVolunteerError):
         test_service.confirm_pickup(dispatch.id, verification_code="0000")
+
+
+def test_delivery_requires_pickup_first(test_service):
+    proposal = test_service.simulate_random_alert()
+    dispatch = test_service.approve_proposal(proposal.id)
+
+    # Cannot deliver a dispatch that has not been picked up.
+    with pytest.raises(InvalidStateTransitionError):
+        test_service.confirm_delivery(dispatch.id)
+
+
+def test_approve_twice_raises_state_error(test_service):
+    proposal = test_service.simulate_random_alert()
+    test_service.approve_proposal(proposal.id)
+
+    # The proposal is no longer PROPOSED, so a second decision is invalid.
+    with pytest.raises(InvalidStateTransitionError):
+        test_service.approve_proposal(proposal.id)
