@@ -1,6 +1,6 @@
 # 🥗 PantryPulse
 
-> **Autonomous Food Rescue & Volunteer Dispatch Agent**  
+> **Autonomous Food Rescue & Volunteer Dispatch Agent**
 > Built for the **Agents for Humans Hackathon** (Good Neighbor Track) using the **AWS Strands Agents SDK**.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](./LICENSE)
@@ -58,7 +58,7 @@ graph TD
 
     subgraph Driven / Outbound Adapters
         StrandsAdapter[Strands Agents SDK Adapter with Custom @tool Functions]
-        MemRepo[In-Memory / Persistent Repository with Seed Fleet]
+        MemRepo[SQLAlchemy Repository<br/>SQLite default · Postgres/MySQL via DATABASE_URL]
         SMSAdapter[Mock SMS & Webhook Dispatch Notifier]
     end
 
@@ -94,15 +94,17 @@ pantry-pulse/
 │   │   │   └── exceptions.py
 │   │   ├── ports/                     # Abstract interfaces (Contracts)
 │   │   │   ├── driving/               # Inbound use cases (Donation, Dispatch, Volunteer)
-│   │   │   └── driven/                # Outbound SPIs (Repos, Agent, Notifier)
+│   │   │   └── driven/                # Outbound SPIs (Repos, Agent, Notifier, Auth)
 │   │   ├── core/                      # Application service orchestrator
-│   │   │   └── services.py
+│   │   │   ├── services.py
+│   │   │   └── auth_service.py        # Login / token verification / password reset
 │   │   ├── adapters/                  # Concrete implementations
-│   │   │   ├── inbound/rest/          # FastAPI routes and app factory
+│   │   │   ├── inbound/rest/          # FastAPI routes, auth routes & app factory
 │   │   │   └── outbound/
 │   │   │       ├── agent/             # Strands Agents SDK adapter & custom @tool functions
-│   │   │       ├── persistence/       # Repository implementations with seed fleet
-│   │   │       └── notification/      # SMS / webhook mock delivery engine
+│   │   │       ├── persistence/       # SQLAlchemy repos, ORM models, seeder & seed data
+│   │   │       ├── notification/      # SMS / webhook mock delivery engine
+│   │   │       └── auth/              # JWT credential adapter & Mailtrap email adapter
 │   │   └── main.py                    # Composition root & server startup
 │   └── tests/                         # Pytest test suite
 ├── frontend/
@@ -154,8 +156,31 @@ PYTHONPATH=. .venv/bin/pytest tests/
 # Start the FastAPI backend:
 PYTHONPATH=. .venv/bin/python src/main.py
 ```
-The backend starts at `http://localhost:8000`.  
+The backend starts at `http://localhost:8000`.
 API Docs (Swagger UI): `http://localhost:8000/docs`
+
+On first boot the app creates its datastore (SQLite file `pantrypulse.db` by default) and seeds the demo fleet, one completed donation, one delivered dispatch, and the demo coordinator account. Seeding is idempotent — restarting the app never duplicates data.
+
+### Datastore & Seeding
+
+Persistence is driven entirely by the `DATABASE_URL` environment variable (see `backend/.env.example`):
+
+| Target                       | `DATABASE_URL`                                         |
+| ---------------------------- | ------------------------------------------------------ |
+| SQLite (default, zero-setup) | `sqlite:///pantrypulse.db`                             |
+| PostgreSQL                   | `postgresql+psycopg://user:pass@host:5432/pantrypulse` |
+| MySQL                        | `mysql+pymysql://user:pass@host:3306/pantrypulse`      |
+
+Switching from SQLite to Postgres or MySQL in production is a one-line environment change — no application code changes. Set `SEED_ON_STARTUP=false` to skip seeding (e.g., when the database is already populated).
+
+### Authentication
+
+The app is protected by JWT authentication. Log in with the seeded demo coordinator:
+
+- **Email:** `coordinator@pantrypulse.org`
+- **Password:** `Coordinator123!`
+
+`POST /api/auth/login` returns a JWT that the frontend stores and sends as a `Bearer` token on every API call. Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes (never plaintext), and password-reset emails are delivered via Mailtrap SMTP.
 
 ---
 
