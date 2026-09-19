@@ -18,6 +18,10 @@ venv.bak/
 
 # Pytest / Coverage / Caches
 .pytest_cache/
+
+# Local SQLite datastore (created at runtime; not a source artifact)
+*.db
+pantrypulse.db
 .coverage
 htmlcov/
 .mypy_cache/

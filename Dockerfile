@@ -30,7 +30,6 @@ RUN uv pip install --no-cache --system -r backend/requirements.txt
 
 # Copy backend source code
 COPY backend/src ./backend/src
-COPY backend/main.py ./backend/
 
 # Copy built frontend static assets from Stage 1
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
