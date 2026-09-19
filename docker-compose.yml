@@ -1,12 +1,38 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pantry-pulse-db
+    environment:
+      POSTGRES_DB: pantry-pulse
+      POSTGRES_USER: pantry
+      POSTGRES_PASSWORD: pantry
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantry -d pantry-pulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   pantry-pulse:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: pantry-pulse-app
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "80:8000"
       - "8000:8000"
     environment:
       - PORT=8000
       - STATIC_DIR=/app/frontend/dist
+      - DATABASE_URL=postgresql+psycopg://pantry:pantry@postgres:5432/pantry-pulse
+      - SEED_ON_STARTUP=true
     restart: unless-stopped
+
+volumes:
+  pgdata:
